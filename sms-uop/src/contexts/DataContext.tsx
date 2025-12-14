@@ -41,7 +41,6 @@ export const useData = () => {
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [societies, setSocieties] = useState<Society[]>([]);
-  // Admin Data
   const [registrations, setRegistrations] = useState<SocietyRegistration[]>([]);
   const [renewals, setRenewals] = useState<SocietyRenewal[]>([]);
   const [eventPermissions, setEventPermissions] = useState<EventPermission[]>([]);
@@ -59,43 +58,41 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
 
-      // --- 1. PUBLIC DATA (Always fetch) ---
+      // 1. FETCH PUBLIC DATA (Crucial for Renewal/Events)
       try {
-        // Fetch ALL societies (size=1000 ensures we get the list for dropdowns)
         const societiesRes = await apiService.societies.getAll({ size: 1000 });
         setSocieties(societiesRes.data.content || []);
 
         const statsRes = await apiService.societies.getStatistics();
         setStats(statsRes.data);
-      } catch (publicErr) {
-        console.error("Failed to load public society list:", publicErr);
+      } catch (publicError) {
+        console.error("Failed to load public societies:", publicError);
+        // We continue, don't block the app
       }
 
-      // --- 2. ADMIN DATA (Silent fail if not logged in) ---
+      // 2. FETCH ADMIN DATA (Optional - fails if logged out)
       try {
         const eventsRes = await apiService.events.getAll();
         setEventPermissions(Array.isArray(eventsRes.data) ? eventsRes.data : []);
 
         const monitoringRes = await apiService.admin.getSSMonitoring();
-        const allItems = monitoringRes.data;
-        if (Array.isArray(allItems)) {
-          setRegistrations(allItems.filter((i: any) => i.type === 'registration') as SocietyRegistration[]);
-          setRenewals(allItems.filter((i: any) => i.type === 'renewal') as SocietyRenewal[]);
+        if (monitoringRes.data) {
+          setRegistrations(monitoringRes.data.filter((i: any) => i.type === 'registration'));
+          setRenewals(monitoringRes.data.filter((i: any) => i.type === 'renewal'));
         }
 
         const logsRes = await apiService.admin.getActivityLogs();
-        if(logsRes.data && logsRes.data.content) {
+        if (logsRes.data && logsRes.data.content) {
           setActivityLogs(logsRes.data.content);
         }
-      } catch (adminErr) {
-        // Expected behavior for students/public
+      } catch (adminError) {
+        // Expected for non-admin users, ignore.
       }
 
     } catch (err) {
-      console.error("Critical Data Context Error:", err);
-      // We don't set global error here to avoid blocking public pages if just one API fails
+      console.error("General Data Fetch Error:", err);
+      setError("Failed to initialize system data.");
     } finally {
       setLoading(false);
     }
@@ -111,19 +108,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const addEventPermission = async (data: any) => { await apiService.events.request(data); await fetchData(); };
 
   const updateRegistrationStatus = async (id: string, status: string, reason?: string) => {
-    status.includes('reject') ? await apiService.admin.rejectRegistration(id, { reason: reason || '' })
+    status.includes('reject') ? await apiService.admin.rejectRegistration(id, { comment: reason || '' })
         : await apiService.admin.approveRegistration(id, {});
     await fetchData();
   };
 
   const updateRenewalStatus = async (id: string, status: string, reason?: string) => {
-    status.includes('reject') ? await apiService.renewals.reject(id, { reason: reason || '' })
+    status.includes('reject') ? await apiService.renewals.reject(id, { comment: reason || '' })
         : await apiService.renewals.approve(id, {});
     await fetchData();
   };
 
   const updateEventPermissionStatus = async (id: string, status: string, reason?: string) => {
-    status.includes('reject') ? await apiService.events.reject(id, { reason: reason || '' })
+    status.includes('reject') ? await apiService.events.reject(id, { comment: reason || '' })
         : await apiService.events.approve(id, {});
     await fetchData();
   };

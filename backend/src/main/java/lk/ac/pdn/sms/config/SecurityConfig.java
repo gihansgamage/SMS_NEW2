@@ -28,20 +28,25 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        // --- Allow Login & Public Endpoints ---
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/societies/register").permitAll()
+                        // --- PUBLIC ACCESS (Crucial for Forms) ---
                         .requestMatchers(HttpMethod.GET, "/api/societies/**").permitAll()
-                        .requestMatchers("/api/events/public/**").permitAll()
-                        .requestMatchers("/api/events/request").permitAll()
-                        .requestMatchers("/api/events/validate-applicant").permitAll()
-                        .requestMatchers("/api/events/applicant-details").permitAll()
-                        .requestMatchers("/api/renewals/submit").permitAll()
-                        .requestMatchers("/api/renewals/latest-data").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/societies/active").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/societies/latest-data").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/societies/register").permitAll()
+
+                        .requestMatchers(HttpMethod.POST, "/api/renewals/submit").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/renewals/latest-data").permitAll()
+
+                        .requestMatchers(HttpMethod.POST, "/api/events/request").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/events/validate-applicant").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/applicant-details").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/events/public/**").permitAll()
+
+                        .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/validation/**").permitAll()
                         .requestMatchers("/error", "/favicon.ico").permitAll()
 
-                        // --- Protect Admin Panel ---
+                        // --- ADMIN ACCESS ---
                         .requestMatchers("/api/admin/**").authenticated()
                         .requestMatchers("/api/events/admin/**").authenticated()
                         .requestMatchers("/api/renewals/admin/**").authenticated()
@@ -50,9 +55,6 @@ public class SecurityConfig {
                 )
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
-                        .logoutSuccessHandler((request, response, authentication) -> {
-                            response.setStatus(200);
-                        })
                         .permitAll()
                 );
 

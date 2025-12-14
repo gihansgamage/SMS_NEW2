@@ -1,7 +1,6 @@
 package lk.ac.pdn.sms.service;
 
 import lk.ac.pdn.sms.dto.EventPermissionDto;
-// ... imports same as before ...
 import lk.ac.pdn.sms.dto.ApprovalDto;
 import lk.ac.pdn.sms.dto.ApplicantDetailsDto;
 import lk.ac.pdn.sms.entity.EventPermission;
@@ -12,7 +11,7 @@ import lk.ac.pdn.sms.repository.SocietyRepository;
 import lk.ac.pdn.sms.repository.AdminUserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.PageRequest; // <--- Added missing import
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,8 +33,11 @@ public class EventPermissionService {
     @Autowired private ActivityLogService activityLogService;
     @Autowired private PDFService pdfService;
 
+    // --- Auto-Fill Helper ---
     public ApplicantDetailsDto getApplicantDetails(String societyName, String position) {
-        Society society = societyRepository.findBySocietyName(societyName).orElseThrow(() -> new RuntimeException("Society not found: " + societyName));
+        Society society = societyRepository.findBySocietyName(societyName)
+                .orElseThrow(() -> new RuntimeException("Society not found: " + societyName));
+
         String name="", regNo="", email="", mobile="";
         switch (position.toLowerCase()) {
             case "president": name=society.getPresidentName(); regNo=society.getPresidentRegNo(); email=society.getPresidentEmail(); mobile=society.getPresidentMobile(); break;
@@ -48,15 +50,15 @@ public class EventPermissionService {
         return new ApplicantDetailsDto(name, regNo, email, mobile, society.getFaculty());
     }
 
+    // --- Create Request (With Validation) ---
     public EventPermission createEventRequest(EventPermissionDto dto) {
-        // --- 1. Validation ---
+        // 1. DATA VALIDATION
         if (dto.getEventDate() != null) {
-            LocalDate eventDate = LocalDate.parse(dto.getEventDate());
-            if (eventDate.isBefore(LocalDate.now())) {
+            LocalDate date = LocalDate.parse(dto.getEventDate());
+            if (date.isBefore(LocalDate.now())) {
                 throw new RuntimeException("Invalid Date: Event cannot be in the past.");
             }
         }
-
         if (dto.getTimeFrom() != null && dto.getTimeTo() != null) {
             LocalTime start = LocalTime.parse(dto.getTimeFrom());
             LocalTime end = LocalTime.parse(dto.getTimeTo());
@@ -65,7 +67,7 @@ public class EventPermissionService {
             }
         }
 
-        // --- 2. Create Event ---
+        // 2. CREATE ENTITY
         Society society = societyRepository.findBySocietyName(dto.getSocietyName())
                 .orElseThrow(() -> new RuntimeException("Society not found: " + dto.getSocietyName()));
 
@@ -104,86 +106,135 @@ public class EventPermissionService {
         event.setStatus(EventPermission.EventStatus.PENDING_DEAN);
 
         event = eventRepository.save(event);
-        emailService.sendEventPermissionConfirmation(event);
-        emailService.notifyDeanForEventApproval(event);
-        activityLogService.logActivity("Event Permission Requested", event.getEventName(), event.getApplicantName());
 
+        // Non-blocking email notification
+        try {
+            emailService.sendEventPermissionConfirmation(event);
+            emailService.notifyDeanForEventApproval(event);
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to send creation emails: " + e.getMessage());
+        }
+
+        activityLogService.logActivity("Event Permission Requested", event.getEventName(), event.getApplicantName());
         return event;
     }
 
-    // --- Approval/Reject Methods same as before (Ensure they use correct logic) ---
+    // --- Approval Logic (Fixed: Non-Blocking Email) ---
     public EventPermission approveRequest(Long id, ApprovalDto dto, String userEmail) {
-        EventPermission event = eventRepository.findById(id).orElseThrow(() -> new RuntimeException("Event request not found"));
-        AdminUser admin = adminUserRepository.findByEmail(userEmail).orElseThrow(() -> new RuntimeException("Admin user not found"));
+        EventPermission event = eventRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Event request not found"));
+
+        AdminUser admin = adminUserRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("Admin user not found"));
+
         boolean approved = false;
+        String emailAction = "";
 
         switch (admin.getRole()) {
             case DEAN:
                 if (event.getStatus() == EventPermission.EventStatus.PENDING_DEAN) {
-                    event.setIsDeanApproved(true); event.setDeanApprovalDate(LocalDateTime.now());
+                    event.setIsDeanApproved(true);
+                    event.setDeanApprovalDate(LocalDateTime.now());
                     event.setStatus(EventPermission.EventStatus.PENDING_PREMISES);
-                    emailService.sendEventStatusUpdate(event, "APPROVED_BY_DEAN", "Faculty Dean");
-                    emailService.notifyPremisesOfficerForApproval(event);
+                    emailAction = "NOTIFY_PREMISES";
                     approved = true;
+                } else {
+                    throw new RuntimeException("Action Failed: Event is not pending Dean approval.");
                 }
                 break;
+
             case PREMISES_OFFICER:
                 if (event.getStatus() == EventPermission.EventStatus.PENDING_PREMISES) {
-                    event.setIsPremisesApproved(true); event.setPremisesApprovalDate(LocalDateTime.now());
+                    event.setIsPremisesApproved(true);
+                    event.setPremisesApprovalDate(LocalDateTime.now());
                     event.setStatus(EventPermission.EventStatus.PENDING_AR);
-                    emailService.sendEventStatusUpdate(event, "VENUE_APPROVED", "Premises Officer");
-                    emailService.notifyAssistantRegistrarForEventApproval(event);
+                    emailAction = "NOTIFY_AR";
                     approved = true;
+                } else {
+                    throw new RuntimeException("Action Failed: Event is not pending Premises approval.");
                 }
                 break;
+
             case ASSISTANT_REGISTRAR:
                 if (event.getStatus() == EventPermission.EventStatus.PENDING_AR) {
-                    event.setIsArApproved(true); event.setArApprovalDate(LocalDateTime.now());
+                    event.setIsArApproved(true);
+                    event.setArApprovalDate(LocalDateTime.now());
                     event.setStatus(EventPermission.EventStatus.PENDING_VC);
-                    emailService.sendEventStatusUpdate(event, "APPROVED_BY_AR", "Assistant Registrar");
-                    emailService.notifyViceChancellorForEventApproval(event);
+                    emailAction = "NOTIFY_VC";
                     approved = true;
+                } else {
+                    throw new RuntimeException("Action Failed: Event is not pending AR approval.");
                 }
                 break;
+
             case VICE_CHANCELLOR:
                 if (event.getStatus() == EventPermission.EventStatus.PENDING_VC) {
-                    event.setIsVcApproved(true); event.setVcApprovalDate(LocalDateTime.now());
+                    event.setIsVcApproved(true);
+                    event.setVcApprovalDate(LocalDateTime.now());
                     event.setStatus(EventPermission.EventStatus.APPROVED);
                     event.setApprovedDate(LocalDateTime.now());
-                    emailService.sendEventStatusUpdate(event, "FULLY_APPROVED", "Vice Chancellor");
+                    emailAction = "NOTIFY_FINAL";
                     approved = true;
+                } else {
+                    throw new RuntimeException("Action Failed: Event is not pending VC approval.");
                 }
                 break;
-            default: throw new RuntimeException("Unauthorized approval attempt");
+
+            default:
+                throw new RuntimeException("Unauthorized approval attempt");
         }
 
         if (approved) {
             event = eventRepository.save(event);
             activityLogService.logActivity("Event Approved", event.getEventName(), admin.getName());
+
+            // Non-blocking Email Notifications
+            try {
+                if(emailAction.equals("NOTIFY_PREMISES")) emailService.notifyPremisesOfficerForApproval(event);
+                else if(emailAction.equals("NOTIFY_AR")) emailService.notifyAssistantRegistrarForEventApproval(event);
+                else if(emailAction.equals("NOTIFY_VC")) emailService.notifyViceChancellorForEventApproval(event);
+                else if(emailAction.equals("NOTIFY_FINAL")) emailService.sendEventStatusUpdate(event, "FULLY_APPROVED", "Vice Chancellor");
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to send approval email (" + emailAction + "): " + e.getMessage());
+            }
         }
         return event;
     }
 
     public EventPermission rejectRequest(Long id, ApprovalDto dto, String userEmail) {
-        EventPermission event = eventRepository.findById(id).orElseThrow(() -> new RuntimeException("Event request not found"));
-        AdminUser admin = adminUserRepository.findByEmail(userEmail).orElseThrow(() -> new RuntimeException("Admin user not found"));
+        EventPermission event = eventRepository.findById(id).orElseThrow(() -> new RuntimeException("Event not found"));
+        AdminUser admin = adminUserRepository.findByEmail(userEmail).orElseThrow(() -> new RuntimeException("Admin not found"));
+
         event.setStatus(EventPermission.EventStatus.REJECTED);
         event.setRejectionReason(dto.getReason());
+
         event = eventRepository.save(event);
-        emailService.sendEventRejectionNotification(event);
+
+        try {
+            emailService.sendEventRejectionNotification(event);
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to send rejection email: " + e.getMessage());
+        }
+
         activityLogService.logActivity("Event Rejected", event.getEventName(), admin.getName());
         return event;
     }
 
-    // ... Other Helper Methods (getAllEvents, getPendingEvents, etc.) ...
+    // --- Helper Methods ---
+    public EventPermission getEventById(Long id) {
+        return eventRepository.findById(id).orElseThrow(() -> new RuntimeException("Event not found"));
+    }
+
     public List<EventPermission> getAllEvents(String status) {
         if (status == null || status.equalsIgnoreCase("all") || status.isEmpty()) return eventRepository.findAll();
         try { return eventRepository.findByStatus(EventPermission.EventStatus.valueOf(status.toUpperCase())); }
         catch (IllegalArgumentException e) { return List.of(); }
     }
+
     public List<EventPermission> getPendingEvents() {
         return eventRepository.findAll().stream().filter(e -> e.getStatus().name().startsWith("PENDING")).collect(Collectors.toList());
     }
+
     public List<EventPermission> getPendingRequests(String faculty, String userEmail) {
         AdminUser admin = adminUserRepository.findByEmail(userEmail).orElseThrow(() -> new RuntimeException("Admin not found"));
         switch (admin.getRole()) {
@@ -194,10 +245,13 @@ public class EventPermissionService {
             default: return List.of();
         }
     }
+
     public Page<EventPermission> getAllRequests(Pageable pageable) { return eventRepository.findAll(pageable); }
+
     public byte[] generateEventPDF(Long id) {
         try { EventPermission event = eventRepository.findById(id).orElseThrow(); return pdfService.generateEventPermissionPDF(event); } catch (Exception e) { throw new RuntimeException("PDF Generation Failed"); }
     }
+
     public byte[] generatePreviewPDF(EventPermissionDto dto) {
         try {
             EventPermission temp = new EventPermission(); temp.setEventName(dto.getEventName()); temp.setSocietyName(dto.getSocietyName());
@@ -208,14 +262,18 @@ public class EventPermissionService {
             return pdfService.generateEventPermissionPDF(temp);
         } catch (Exception e) { throw new RuntimeException("Preview Generation Failed"); }
     }
+
     public boolean validateApplicantPosition(String societyName, String position, String regNo, String email) {
         ApplicantDetailsDto official = getApplicantDetails(societyName, position);
         String normalizedInputReg = normalizeRegistrationNumber(regNo);
         String normalizedOfficialReg = normalizeRegistrationNumber(official.getRegNo());
         return normalizedInputReg.equals(normalizedOfficialReg) && official.getEmail().equalsIgnoreCase(email);
     }
+
     private String normalizeRegistrationNumber(String regNo) { if (regNo == null) return ""; return regNo.toUpperCase().replaceAll("[\\s/]", ""); }
+
     public List<EventPermission> getUpcomingEvents(int limit) {
+        // THIS IS WHERE THE ERROR WAS
         Pageable pageable = PageRequest.of(0, limit);
         Page<EventPermission> page = eventRepository.findUpcomingApprovedEvents(LocalDate.now(), pageable);
         return page.getContent();

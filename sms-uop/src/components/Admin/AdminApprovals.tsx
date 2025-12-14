@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiService } from '../../services/api';
-import { Check, X, FileText, Eye, XCircle } from 'lucide-react';
+import { Check, X, FileText, Eye, XCircle, AlertTriangle } from 'lucide-react';
 
 interface PendingItem {
   id: string;
@@ -9,7 +9,7 @@ interface PendingItem {
   applicantName: string;
   submittedDate: string;
   status: string;
-  details?: any;
+  details?: any; // Extra details like event name or faculty
 }
 
 const AdminApprovals: React.FC<{ user: any }> = ({ user }) => {
@@ -52,23 +52,29 @@ const AdminApprovals: React.FC<{ user: any }> = ({ user }) => {
       }
 
       alert(`Successfully ${action}ed!`);
-      setSelectedItem(null); // Close modal if open
-      fetchPending();
-    } catch (err) {
-      alert('Action failed. The request may already be processed or you do not have permission.');
+      setSelectedItem(null); // Close modal
+      fetchPending(); // Refresh list
+    } catch (err: any) {
+      // Show Backend Error Message if available
+      const backendMsg = err.response?.data?.message || err.response?.data || 'Unknown error occurred.';
+      alert(`Action Failed: ${backendMsg}`);
     }
   };
 
-  if (loading) return <div className="text-center p-10 text-gray-500">Loading pending approvals...</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading pending approvals...</div>;
 
   return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">Pending Approvals</h2>
+          <span className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">{items.length} Pending</span>
         </div>
         <div className="divide-y divide-gray-200">
           {items.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">No pending approvals found for your review.</div>
+              <div className="p-8 text-center text-gray-500">
+                <Check className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                <p>No pending approvals found for your review.</p>
+              </div>
           ) : (
               items.map((item) => (
                   <div key={`${item.type}-${item.id}`} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors">
@@ -85,6 +91,9 @@ const AdminApprovals: React.FC<{ user: any }> = ({ user }) => {
                       </div>
                       <h3 className="text-lg font-medium text-gray-900">{item.societyName}</h3>
                       <p className="text-sm text-gray-600">Applicant: {item.applicantName}</p>
+                      {item.details && item.details.eventName && (
+                          <p className="text-xs text-indigo-600 mt-1 font-medium">Event: {item.details.eventName}</p>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-3">
@@ -106,7 +115,7 @@ const AdminApprovals: React.FC<{ user: any }> = ({ user }) => {
 
                       <button
                           onClick={() => handleAction(item.id, item.type, 'approve')}
-                          className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                          className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
                           title="Approve"
                       >
                         <Check className="w-5 h-5" />
@@ -117,43 +126,42 @@ const AdminApprovals: React.FC<{ user: any }> = ({ user }) => {
           )}
         </div>
 
-        {/* View Details Modal */}
+        {/* View Application Modal */}
         {selectedItem && (
             <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
               <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
                   <div>
                     <h3 className="text-xl font-bold text-gray-900">{selectedItem.societyName}</h3>
-                    <p className="text-sm text-gray-500 uppercase tracking-wide">{selectedItem.type} Request</p>
+                    <p className="text-sm text-gray-500 uppercase tracking-wide">{selectedItem.type} Application</p>
                   </div>
                   <button onClick={() => setSelectedItem(null)} className="text-gray-400 hover:text-red-500">
                     <XCircle className="w-8 h-8" />
                   </button>
                 </div>
 
-                <div className="p-6 space-y-4">
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h4 className="font-semibold text-gray-700 mb-2 border-b pb-1">Applicant Details</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div><span className="text-gray-500">Name:</span> <br/>{selectedItem.applicantName}</div>
-                      <div><span className="text-gray-500">Submitted:</span> <br/>{new Date(selectedItem.submittedDate).toLocaleString()}</div>
-                      <div><span className="text-gray-500">Current Status:</span> <br/>{selectedItem.status}</div>
+                <div className="p-6 space-y-6">
+                  <div className="grid grid-cols-2 gap-6 text-sm">
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-semibold text-gray-700 mb-2">Applicant</h4>
+                      <p className="text-gray-600 mb-1"><span className="font-medium text-gray-900">Name:</span> {selectedItem.applicantName}</p>
+                      <p className="text-gray-600 mb-1"><span className="font-medium text-gray-900">Date:</span> {new Date(selectedItem.submittedDate).toLocaleDateString()}</p>
+                      <p className="text-gray-600"><span className="font-medium text-gray-900">Status:</span> {selectedItem.status}</p>
                     </div>
-                  </div>
 
-                  {selectedItem.details && (
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <h4 className="font-semibold text-blue-800 mb-2 border-b border-blue-200 pb-1">Request Details</h4>
-                        <div className="space-y-2 text-sm text-gray-800">
+                    {selectedItem.details && (
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <h4 className="font-semibold text-blue-800 mb-2">Request Details</h4>
                           {Object.entries(selectedItem.details).map(([key, value]) => (
-                              <div key={key} className="grid grid-cols-3">
-                                <span className="font-medium text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                                <span className="col-span-2">{String(value)}</span>
-                              </div>
+                              value && (
+                                  <p key={key} className="text-blue-900 mb-1 truncate">
+                                    <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}:</span> {String(value)}
+                                  </p>
+                              )
                           ))}
                         </div>
-                      </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end space-x-3 rounded-b-xl">
@@ -165,9 +173,9 @@ const AdminApprovals: React.FC<{ user: any }> = ({ user }) => {
                   </button>
                   <button
                       onClick={() => handleAction(selectedItem.id, selectedItem.type, 'approve')}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-sm"
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-sm flex items-center"
                   >
-                    Approve Request
+                    <Check className="w-4 h-4 mr-2" /> Approve Request
                   </button>
                 </div>
               </div>

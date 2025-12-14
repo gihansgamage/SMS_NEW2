@@ -49,7 +49,7 @@ function App() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/explore" element={<ExplorePage />} />
                   <Route path="/register" element={<RegistrationForm />} />
-                  <Route path="/renew" element={<RenewalPage />} />
+                  <Route path="/renewal" element={<RenewalPage />} />
                   <Route path="/events" element={<EventPermissionPage />} />
                   <Route path="/guidelines" element={<GuidelinesPage />} />
                   <Route path="/help" element={<HelpPage />} />
