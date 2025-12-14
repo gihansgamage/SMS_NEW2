@@ -9,7 +9,7 @@ import OfficialsStep from '../components/Registration/steps/OfficialsStep';
 import MembersStep from '../components/Registration/steps/MembersStep';
 import ReviewStep from '../components/Registration/steps/ReviewStep';
 import { apiService } from '../services/api';
-import { School, AlertTriangle } from 'lucide-react';
+import { School, Loader2, AlertCircle } from 'lucide-react';
 
 const steps = [
   { title: 'Select Society', description: 'Choose society to renew' },
@@ -30,16 +30,11 @@ const RenewalPage: React.FC = () => {
 
   // Initial Form State
   const [formData, setFormData] = useState<Partial<SocietyRenewal>>({
-    applicantFullName: '',
-    applicantRegNo: '',
-    applicantEmail: '',
-    applicantFaculty: '',
-    applicantMobile: '',
+    applicantFullName: '', applicantRegNo: '', applicantEmail: '', applicantFaculty: '', applicantMobile: '',
     societyName: '',
     seniorTreasurer: { title: '', name: '', designation: '', department: '', email: '', address: '', mobile: '' },
     advisoryBoard: [{ name: '', designation: '', department: '' }],
-    bankAccount: '',
-    bankName: '',
+    bankAccount: '', bankName: '',
     president: { regNo: '', name: '', address: '', email: '', mobile: '' },
     vicePresident: { regNo: '', name: '', address: '', email: '', mobile: '' },
     juniorTreasurer: { regNo: '', name: '', address: '', email: '', mobile: '' },
@@ -47,43 +42,26 @@ const RenewalPage: React.FC = () => {
     jointSecretary: { regNo: '', name: '', address: '', email: '', mobile: '' },
     editor: { regNo: '', name: '', address: '', email: '', mobile: '' },
     committeeMember: [{ regNo: '', name: '' }],
-    agmDate: '',
-    member: [{ regNo: '', name: '' }],
+    agmDate: '', member: [{ regNo: '', name: '' }],
     planningEvents: [{ month: '', activity: '' }],
     previousActivities: [{ month: '', activity: '' }],
-    difficulties: '',
-    website: ''
+    difficulties: '', website: ''
   });
 
   // 1. Loading State
   if (contextLoading) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-maroon-800"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading Application...</p>
+          <Loader2 className="h-12 w-12 text-[#800000] animate-spin mb-4" />
+          <p className="text-gray-600 font-medium">Loading Application Data...</p>
         </div>
     );
   }
 
-  // 2. Error State
-  if (contextError) {
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-          <AlertTriangle className="h-12 w-12 text-red-600 mb-4" />
-          <h2 className="text-xl font-bold text-gray-800">Unable to Load Data</h2>
-          <p className="text-gray-600 mt-2 text-center max-w-md">{contextError}</p>
-          <button
-              onClick={() => window.location.reload()}
-              className="mt-6 px-4 py-2 bg-maroon-800 text-white rounded hover:bg-maroon-900 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-    );
-  }
-
-  // 3. Safe Data Access
-  const activeSocieties = (societies || []).filter(s => s.status === 'active');
+  // 2. Safe Data Access & Case-Insensitive Filter
+  const activeSocieties = (societies || []).filter(s =>
+      s.status && s.status.toLowerCase() === 'active'
+  );
 
   const handleSocietySelect = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const societyName = e.target.value;
@@ -96,7 +74,6 @@ const RenewalPage: React.FC = () => {
       const response = await apiService.societies.getLatestData(societyName);
       const society = response.data;
 
-      // Auto-fill form data
       setFormData(prev => ({
         ...prev,
         societyName: society.societyName,
@@ -111,7 +88,7 @@ const RenewalPage: React.FC = () => {
       }));
     } catch (error) {
       console.error('Failed to load society data:', error);
-      alert('Failed to load society details. You may proceed by entering details manually.');
+      alert('Could not auto-load society details. You can proceed by entering them manually.');
     } finally {
       setIsLoading(false);
     }
@@ -154,8 +131,8 @@ const RenewalPage: React.FC = () => {
         return (
             <div className="animate-fade-in">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <School className="w-6 h-6 mr-2 text-maroon-800" />
-                Select Society
+                <School className="w-6 h-6 mr-2 text-[#800000]" />
+                Select Society to Renew
               </h2>
               <div className="mb-6 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -164,10 +141,10 @@ const RenewalPage: React.FC = () => {
                 <select
                     value={selectedSocietyName}
                     onChange={handleSocietySelect}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500 focus:border-maroon-500 transition-shadow"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#800000] focus:border-[#800000] transition-shadow"
                     disabled={isLoading}
                 >
-                  <option value="">-- Select a registered society --</option>
+                  <option value="">-- Select Society --</option>
                   {activeSocieties.map(society => (
                       <option key={society.id} value={society.societyName}>
                         {society.societyName}
@@ -175,18 +152,21 @@ const RenewalPage: React.FC = () => {
                   ))}
                 </select>
                 {activeSocieties.length === 0 && (
-                    <p className="mt-3 text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                      No active societies found. Please ensure your society is registered and active.
-                    </p>
+                    <div className="mt-3 flex items-start p-3 bg-amber-50 rounded-md border border-amber-200">
+                      <AlertCircle className="w-5 h-5 text-amber-600 mr-2 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-amber-700">
+                        No active societies found. Please ensure your society is registered and currently active in the system.
+                      </p>
+                    </div>
                 )}
               </div>
               <div className="flex justify-end mt-8">
                 <button
                     onClick={nextStep}
                     disabled={!selectedSocietyName || isLoading}
-                    className="bg-maroon-800 text-white px-8 py-3 rounded-lg hover:bg-maroon-900 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                    className="bg-[#800000] text-white px-8 py-3 rounded-lg hover:bg-[#600000] transition-all shadow-md disabled:opacity-50 flex items-center"
                 >
-                  {isLoading ? 'Loading Data...' : 'Next Step'}
+                  {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> Loading Data...</> : 'Next Step'}
                 </button>
               </div>
             </div>
@@ -201,13 +181,13 @@ const RenewalPage: React.FC = () => {
   };
 
   return (
-      <div className="min-h-screen bg-gray-50 py-12">
+      <div className="min-h-screen bg-gray-50 py-12 font-sans">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white rounded-xl shadow-xl overflow-hidden border-t-4 border-maroon-800">
+          <div className="bg-white rounded-xl shadow-xl overflow-hidden border-t-4 border-[#800000]">
             <div className="p-8">
               <div className="mb-8 border-b border-gray-100 pb-6">
                 <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Annual Society Renewal</h1>
-                <p className="text-gray-600">Submit your society's annual renewal application.</p>
+                <p className="text-gray-600">Submit your society's annual renewal application for the upcoming academic year.</p>
               </div>
 
               <StepIndicator steps={steps} currentStep={currentStep} />

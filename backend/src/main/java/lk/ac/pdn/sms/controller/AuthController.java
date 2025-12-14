@@ -17,6 +17,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -28,63 +29,71 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
-        System.out.println("Login Request: " + loginRequest); // Debug Log
+        System.out.println("--- LOGIN ATTEMPT ---");
+        System.out.println("Email: " + loginRequest.getEmail());
+        System.out.println("Role Request: " + loginRequest.getRole());
 
-        // 1. Validate inputs
+        // 1. Validate Input
         if (loginRequest.getEmail() == null || loginRequest.getRole() == null) {
-            return ResponseEntity.badRequest().body("Email and Role are required");
+            return ResponseEntity.badRequest().body(Map.of("message", "Email and Role are required"));
         }
 
-        // 2. Check if user exists in admin_users table
+        // 2. Find User in DB
         AdminUser user = adminUserRepository.findByEmail(loginRequest.getEmail())
                 .orElse(null);
 
         if (user == null) {
-            System.out.println("User not found: " + loginRequest.getEmail());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found with this email.");
+            System.out.println("Error: User not found in 'admin_users' table.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Access Denied: User email not found in admin records."));
         }
 
-        // 3. Validate Role (Case Insensitive)
+        // 3. Validate Role
         if (!user.getRole().name().equalsIgnoreCase(loginRequest.getRole())) {
-            System.out.println("Role Mismatch. Expected: " + user.getRole() + ", Got: " + loginRequest.getRole());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Role mismatch. You are registered as " + user.getRole());
+            System.out.println("Error: Role Mismatch. DB: " + user.getRole() + ", Req: " + loginRequest.getRole());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Access Denied: Your registered role is " + user.getRole()));
         }
 
-        // 4. Validate Faculty (Only if role is DEAN) - ROBUST MATCHING
+        // 4. Validate Faculty (If Dean)
         if (user.getRole() == AdminUser.Role.DEAN) {
             String reqFaculty = loginRequest.getFaculty() != null ? loginRequest.getFaculty().toLowerCase().trim() : "";
             String dbFaculty = user.getFaculty() != null ? user.getFaculty().toLowerCase().trim() : "";
 
-            // Check if one contains the other (e.g., "Engineering" matches "Faculty of Engineering")
+            System.out.println("Checking Faculty. DB: " + dbFaculty + ", Req: " + reqFaculty);
+
+            // Flexible matching: check if strings contain each other
             if (reqFaculty.isEmpty() || (!dbFaculty.contains(reqFaculty) && !reqFaculty.contains(dbFaculty))) {
-                System.out.println("Faculty Mismatch. DB: " + dbFaculty + ", Request: " + reqFaculty);
+                System.out.println("Error: Faculty Mismatch");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body("Faculty mismatch. Registered: " + user.getFaculty() + ", Selected: " + loginRequest.getFaculty());
+                        .body(Map.of("message", "Access Denied: Faculty mismatch. Registered to: " + user.getFaculty()));
             }
         }
 
-        // 5. Create Authentication Token
+        // 5. Success - Set Session Manually (Most Reliable Method)
         SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + user.getRole().name());
         Authentication auth = new UsernamePasswordAuthenticationToken(user, null, Collections.singletonList(authority));
 
-        // 6. Set Security Context
-        SecurityContext sc = SecurityContextHolder.getContext();
+        SecurityContext sc = SecurityContextHolder.createEmptyContext();
         sc.setAuthentication(auth);
+        SecurityContextHolder.setContext(sc);
 
-        // 7. Persist to Session
+        // Explicitly save to session
         HttpSession session = request.getSession(true);
         session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, sc);
 
+        System.out.println("--- LOGIN SUCCESSFUL: " + user.getName() + " ---");
         return ResponseEntity.ok(user);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request) {
+        SecurityContextHolder.clearContext();
         HttpSession session = request.getSession(false);
         if (session != null) {
             session.invalidate();
         }
-        SecurityContextHolder.clearContext();
-        return ResponseEntity.ok().build();
+        System.out.println("User Logged Out");
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 }

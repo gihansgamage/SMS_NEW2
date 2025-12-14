@@ -1,69 +1,106 @@
 package lk.ac.pdn.sms.controller;
 
 import lk.ac.pdn.sms.dto.EventPermissionDto;
+import lk.ac.pdn.sms.dto.ApprovalDto;
+import lk.ac.pdn.sms.dto.ApplicantDetailsDto;
 import lk.ac.pdn.sms.entity.EventPermission;
 import lk.ac.pdn.sms.service.EventPermissionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/events")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = "http://localhost:5173")
 public class EventPermissionController {
 
     @Autowired
     private EventPermissionService eventService;
 
-    // Public: Request an event
     @PostMapping("/request")
-    public ResponseEntity<EventPermission> requestEvent(@RequestBody EventPermissionDto dto) {
+    public ResponseEntity<EventPermission> requestPermission(@Valid @RequestBody EventPermissionDto dto) {
         return ResponseEntity.ok(eventService.createEventRequest(dto));
     }
 
-    // Public: Validate Applicant
+    // --- NEW: Auto-Fill Endpoint ---
+    @GetMapping("/applicant-details")
+    public ResponseEntity<ApplicantDetailsDto> getApplicantDetails(
+            @RequestParam String societyName,
+            @RequestParam String position) {
+        return ResponseEntity.ok(eventService.getApplicantDetails(societyName, position));
+    }
+
     @PostMapping("/validate-applicant")
-    public ResponseEntity<Boolean> validateApplicant(@RequestBody Map<String, String> payload) {
-        // Implementation delegated to service
-        boolean isValid = eventService.validateApplicant(
-                payload.get("societyName"),
-                payload.get("position"),
-                payload.get("regNo"),
-                payload.get("email")
-        );
+    public ResponseEntity<Boolean> validateApplicant(@RequestBody Map<String, String> request) {
+        String societyName = request.get("societyName");
+        String position = request.get("position");
+        String regNo = request.get("regNo");
+        String email = request.get("email");
+
+        boolean isValid = eventService.validateApplicantPosition(societyName, position, regNo, email);
         return ResponseEntity.ok(isValid);
     }
 
-    // Public: Get Upcoming Events
-    @GetMapping("/public/upcoming")
-    public ResponseEntity<List<EventPermission>> getUpcomingEvents(@RequestParam(defaultValue = "5") int limit) {
-        return ResponseEntity.ok(eventService.getUpcomingEvents(limit));
+    @PostMapping("/preview-pdf")
+    public ResponseEntity<byte[]> previewPDF(@RequestBody EventPermissionDto dto) {
+        byte[] pdfBytes = eventService.generatePreviewPDF(dto);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=event_preview.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
     }
 
-    // --- Admin Endpoints ---
-
-    // Fix for Admin Events Tab
-    @GetMapping("/admin/all")
-    @PreAuthorize("hasAnyRole('DEAN', 'ASSISTANT_REGISTRAR', 'VICE_CHANCELLOR', 'STUDENT_SERVICE', 'PREMISES_OFFICER')")
-    public ResponseEntity<List<EventPermission>> getAllEventsForAdmin(
-            @RequestParam(required = false) String status) {
-        return ResponseEntity.ok(eventService.getAllEvents(status));
+    @GetMapping("/download/{id}")
+    public ResponseEntity<byte[]> downloadPDF(@PathVariable Long id) {
+        byte[] pdfBytes = eventService.generateEventPDF(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=event_permission.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
     }
 
     @GetMapping("/admin/pending")
-    @PreAuthorize("hasAnyRole('DEAN', 'ASSISTANT_REGISTRAR', 'VICE_CHANCELLOR')")
-    public ResponseEntity<List<EventPermission>> getPendingEvents() {
-        return ResponseEntity.ok(eventService.getPendingEvents());
+    @PreAuthorize("hasAnyRole('DEAN', 'PREMISES_OFFICER', 'ASSISTANT_REGISTRAR', 'VICE_CHANCELLOR')")
+    public ResponseEntity<List<EventPermission>> getPendingRequests(Principal principal) {
+        return ResponseEntity.ok(eventService.getPendingRequests(null, principal.getName()));
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<EventPermission> getEventById(@PathVariable Long id) {
-        return ResponseEntity.ok(eventService.getEventById(id));
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasAnyRole('DEAN', 'ASSISTANT_REGISTRAR', 'VICE_CHANCELLOR', 'STUDENT_SERVICE', 'PREMISES_OFFICER')")
+    public ResponseEntity<List<EventPermission>> getAllEventsForAdmin(@RequestParam(required = false) String status) {
+        return ResponseEntity.ok(eventService.getAllEvents(status));
+    }
+
+    @PostMapping("/admin/approve/{id}")
+    @PreAuthorize("hasAnyRole('DEAN', 'PREMISES_OFFICER', 'ASSISTANT_REGISTRAR', 'VICE_CHANCELLOR')")
+    public ResponseEntity<EventPermission> approveRequest(
+            @PathVariable Long id,
+            @RequestBody ApprovalDto dto,
+            Principal principal) {
+        return ResponseEntity.ok(eventService.approveRequest(id, dto, principal.getName()));
+    }
+
+    @PostMapping("/admin/reject/{id}")
+    @PreAuthorize("hasAnyRole('DEAN', 'PREMISES_OFFICER', 'ASSISTANT_REGISTRAR', 'VICE_CHANCELLOR')")
+    public ResponseEntity<EventPermission> rejectRequest(
+            @PathVariable Long id,
+            @RequestBody ApprovalDto dto,
+            Principal principal) {
+        return ResponseEntity.ok(eventService.rejectRequest(id, dto, principal.getName()));
+    }
+
+    @GetMapping("/public/upcoming")
+    public ResponseEntity<List<EventPermission>> getUpcomingEvents(@RequestParam(defaultValue = "5") int limit) {
+        return ResponseEntity.ok(eventService.getUpcomingEvents(limit));
     }
 }

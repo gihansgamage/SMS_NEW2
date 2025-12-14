@@ -4,7 +4,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api
 
 const apiClient = axios.create({
   baseURL: API_BASE,
-  timeout: 15000,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -40,7 +40,7 @@ export const apiService = {
   },
 
   renewals: {
-    submit: (data: any) => apiClient.post('/societies/renew', data),
+    submit: (data: any) => apiClient.post('/renewals/submit', data),
     getById: (id: string) => apiClient.get(`/renewals/${id}`),
     getLatestData: (societyName: string) => apiClient.get(`/renewals/latest-data?societyName=${encodeURIComponent(societyName)}`),
     downloadPDF: (id: string) => apiClient.get(`/renewals/download/${id}`, { responseType: 'blob' }),
@@ -49,6 +49,10 @@ export const apiService = {
         apiClient.get('/renewals/admin/pending', { params }),
     getAll: (params?: { page?: number; size?: number; year?: number; status?: string }) =>
         apiClient.get('/renewals/admin/all', { params }),
+    approve: (id: string, data: { comment?: string }) =>
+        apiClient.post(`/renewals/admin/approve/${id}`, data),
+    reject: (id: string, data: { comment: string }) =>
+        apiClient.post(`/renewals/admin/reject/${id}`, data),
   },
 
   events: {
@@ -57,53 +61,55 @@ export const apiService = {
     getUpcoming: (limit?: number) => apiClient.get('/events/public/upcoming', { params: { limit: limit || 5 } }),
     downloadPDF: (id: string) => apiClient.get(`/events/download/${id}`, { responseType: 'blob' }),
     getPending: () => apiClient.get('/events/admin/pending'),
-    // Used by AdminEvents.tsx
     getAll: (params?: { page?: number; size?: number; status?: string }) =>
         apiClient.get('/events/admin/all', { params }),
     validateApplicant: (data: { societyName: string; position: string; regNo: string; email: string }) =>
         apiClient.post('/events/validate-applicant', data),
+    getApplicantDetails: (societyName: string, position: string) =>
+        apiClient.get('/events/applicant-details', { params: { societyName, position } }),
+
+    // Direct Event Approvals
+    approve: (id: string, data: { comment?: string }) =>
+        apiClient.post(`/events/admin/approve/${id}`, data),
+    reject: (id: string, data: { comment: string }) =>
+        apiClient.post(`/events/admin/reject/${id}`, data),
   },
 
   admin: {
     getCurrentUser: () => apiClient.get('/admin/user-info'),
     getDashboard: () => apiClient.get('/admin/dashboard'),
     getPendingApprovals: () => apiClient.get('/admin/pending-approvals'),
-
     getDeanPending: () => apiClient.get('/admin/dean/pending-applications'),
     getARPending: () => apiClient.get('/admin/ar/pending-applications'),
     getVCPending: () => apiClient.get('/admin/vc/pending-applications'),
     getSSMonitoring: () => apiClient.get('/admin/ss/monitoring-applications'),
-
-    // Used by AdminLogs.tsx
     getActivityLogs: (params?: { user?: string; action?: string; page?: number; size?: number }) =>
         apiClient.get('/admin/activity-logs', { params }),
-
     getSocieties: (params?: { year?: number; status?: string; page?: number; size?: number }) =>
         apiClient.get('/admin/societies', { params }),
-
     sendBulkEmail: (data: { subject: string; body: string; recipients: string[] }) =>
         apiClient.post('/admin/send-email', data),
 
+    // --- Centralized Approvals (Corrected Paths) ---
     approveRegistration: (id: string, data: { comment?: string }) =>
         apiClient.post(`/admin/approve-registration/${id}`, data),
     rejectRegistration: (id: string, data: { comment: string }) =>
         apiClient.post(`/admin/reject-registration/${id}`, data),
 
     approveRenewal: (id: string, data: { comment?: string }) =>
-        apiClient.post(`/admin/approve-renewal/${id}`, data),
+        apiClient.post(`/renewals/admin/approve/${id}`, data),
     rejectRenewal: (id: string, data: { comment: string }) =>
-        apiClient.post(`/admin/reject-renewal/${id}`, data),
+        apiClient.post(`/renewals/admin/reject/${id}`, data),
 
     approveEvent: (id: string, data: { comment?: string }) =>
-        apiClient.post(`/admin/approve-event/${id}`, data),
+        apiClient.post(`/events/admin/approve/${id}`, data),
     rejectEvent: (id: string, data: { comment: string }) =>
-        apiClient.post(`/admin/reject-event/${id}`, data),
+        apiClient.post(`/events/admin/reject/${id}`, data),
 
-    // User Management (Assistant Registrar)
-    getUsers: () => apiClient.get('/admin/ar/manage-admin/all'),
     addUser: (data: any) => apiClient.post('/admin/ar/manage-admin/add', data),
-    toggleUserActive: (id: string) => apiClient.post(`/admin/ar/manage-admin/toggle-active?id=${id}`),
     removeUser: (email: string) => apiClient.post(`/admin/ar/manage-admin/remove?email=${email}`),
+    toggleUserActive: (id: string) => apiClient.post(`/admin/ar/manage-admin/toggle-active?id=${id}`),
+    getUsers: () => apiClient.get('/admin/ar/manage-admin/all'),
   },
 
   files: {

@@ -41,7 +41,7 @@ export const useData = () => {
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [societies, setSocieties] = useState<Society[]>([]);
-  // Admin Data States
+  // Admin Data
   const [registrations, setRegistrations] = useState<SocietyRegistration[]>([]);
   const [renewals, setRenewals] = useState<SocietyRenewal[]>([]);
   const [eventPermissions, setEventPermissions] = useState<EventPermission[]>([]);
@@ -61,23 +61,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(true);
       setError(null);
 
-      // --- 1. PUBLIC DATA (Always fetch this) ---
-      // This ensures Home/Explore pages work even if logged out
+      // --- 1. PUBLIC DATA (Always fetch) ---
       try {
+        // Fetch ALL societies (size=1000 ensures we get the list for dropdowns)
         const societiesRes = await apiService.societies.getAll({ size: 1000 });
         setSocieties(societiesRes.data.content || []);
 
         const statsRes = await apiService.societies.getStatistics();
         setStats(statsRes.data);
       } catch (publicErr) {
-        console.error("Failed to load public society data:", publicErr);
-        // Don't throw here, or the whole app crashes. Just log it.
+        console.error("Failed to load public society list:", publicErr);
       }
 
-      // --- 2. ADMIN DATA (Try to fetch, but ignore if 401/403) ---
+      // --- 2. ADMIN DATA (Silent fail if not logged in) ---
       try {
-        // Only attempt if we think we might be admin, or just try and catch the error
-        const eventsRes = await apiService.events.getAll(); // Admin endpoint
+        const eventsRes = await apiService.events.getAll();
         setEventPermissions(Array.isArray(eventsRes.data) ? eventsRes.data : []);
 
         const monitoringRes = await apiService.admin.getSSMonitoring();
@@ -92,13 +90,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setActivityLogs(logsRes.data.content);
         }
       } catch (adminErr) {
-        // This is EXPECTED when logged out. Do nothing.
-        // console.log("Admin data not accessible (User likely logged out)");
+        // Expected behavior for students/public
       }
 
     } catch (err) {
       console.error("Critical Data Context Error:", err);
-      setError("Failed to initialize data.");
+      // We don't set global error here to avoid blocking public pages if just one API fails
     } finally {
       setLoading(false);
     }

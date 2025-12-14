@@ -28,23 +28,23 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        // --- PUBLIC ENDPOINTS (Allow Unauthenticated Access) ---
-                        .requestMatchers(HttpMethod.GET, "/api/societies/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/societies/public/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/societies/active").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/societies/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/societies/renew").permitAll() // Ensure this matches controller
-
-                        .requestMatchers(HttpMethod.GET, "/api/events/public/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/events/request").permitAll()
-
-                        .requestMatchers("/api/validation/**").permitAll()
+                        // --- Allow Login & Public Endpoints ---
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/societies/register").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/societies/**").permitAll()
+                        .requestMatchers("/api/events/public/**").permitAll()
+                        .requestMatchers("/api/events/request").permitAll()
+                        .requestMatchers("/api/events/validate-applicant").permitAll()
+                        .requestMatchers("/api/events/applicant-details").permitAll()
+                        .requestMatchers("/api/renewals/submit").permitAll()
+                        .requestMatchers("/api/renewals/latest-data").permitAll()
+                        .requestMatchers("/api/validation/**").permitAll()
                         .requestMatchers("/error", "/favicon.ico").permitAll()
 
-                        // --- ADMIN ENDPOINTS (Require Authentication) ---
+                        // --- Protect Admin Panel ---
                         .requestMatchers("/api/admin/**").authenticated()
-                        .requestMatchers("/api/events/admin/**").authenticated() // Protect admin event lists
+                        .requestMatchers("/api/events/admin/**").authenticated()
+                        .requestMatchers("/api/renewals/admin/**").authenticated()
 
                         .anyRequest().authenticated()
                 )

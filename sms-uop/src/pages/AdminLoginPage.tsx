@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Mail, UserCheck, School } from 'lucide-react';
+import { Shield, Mail, UserCheck, School, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const AdminLoginPage: React.FC = () => {
@@ -47,23 +47,52 @@ const AdminLoginPage: React.FC = () => {
 
     try {
       await login(formData.email, formData.role, formData.faculty);
-      // AuthContext will handle the state update, useEffect will redirect
+      // If success, useEffect will redirect
     } catch (err: any) {
-      console.error("Login Error:", err);
-      // Improved error message display from Backend
-      const msg = err.response?.data || 'Login failed. Check your credentials.';
-      setFormError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      console.error("Login Error Object:", err);
+
+      let errorMessage = 'Login failed. Server not responding.';
+
+      if (err.response) {
+        // Backend returned a response code (401, 404, 500)
+        console.log("Error Response Data:", err.response.data);
+
+        if (err.response.data && err.response.data.message) {
+          // Capture the specific message from AuthController
+          errorMessage = err.response.data.message;
+        } else if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else {
+          errorMessage = 'Access Denied. Please verify your credentials.';
+        }
+      }
+
+      setFormError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ... (Roles and Faculties arrays same as before) ...
+  const roles = [
+    { value: 'VICE_CHANCELLOR', label: 'Vice Chancellor' },
+    { value: 'DEAN', label: 'Dean' },
+    { value: 'ASSISTANT_REGISTRAR', label: 'Assistant Registrar' },
+    { value: 'STUDENT_SERVICE', label: 'Student Service Division' },
+    { value: 'PREMISES_OFFICER', label: 'Premises Officer' }
+  ];
+
+  const faculties = [
+    'Engineering', 'Science', 'Arts', 'Medicine', 'Agriculture',
+    'Dental', 'Management', 'Allied Health', 'Veterinary'
+  ];
+
   return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
         <div className="max-w-md w-full space-y-8">
           <div>
             <div className="flex justify-center">
-              <div className="w-20 h-20 bg-maroon-800 rounded-full flex items-center justify-center shadow-lg">
+              <div className="w-20 h-20 bg-[#800000] rounded-full flex items-center justify-center shadow-lg border-2 border-[#FFD700]">
                 <Shield className="w-10 h-10 text-white" />
               </div>
             </div>
@@ -71,7 +100,7 @@ const AdminLoginPage: React.FC = () => {
               University Admin Portal
             </h2>
             <p className="mt-2 text-center text-sm text-gray-600">
-              Secure System Access
+              Restricted System Access
             </p>
           </div>
 
@@ -79,17 +108,17 @@ const AdminLoginPage: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
 
               {formError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative text-sm text-center">
-                    <strong className="font-bold">Access Denied: </strong>
-                    <span className="block sm:inline">{formError}</span>
+                  <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md">
+                    <div className="flex items-start">
+                      <AlertTriangle className="h-5 w-5 text-red-500 mr-2 mt-0.5" />
+                      <p className="text-sm text-red-700 font-medium">{formError}</p>
+                    </div>
                   </div>
               )}
 
-              {/* Email Input */}
+              {/* Inputs */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Official Email
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Official Email</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Mail className="h-5 w-5 text-gray-400" />
@@ -97,71 +126,50 @@ const AdminLoginPage: React.FC = () => {
                   <input
                       type="email"
                       name="email"
-                      id="email"
                       required
                       value={formData.email}
                       onChange={handleInputChange}
-                      className="focus:ring-maroon-500 focus:border-maroon-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2"
-                      placeholder="Enter your official email"
+                      className="focus:ring-[#800000] focus:border-[#800000] block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2.5"
+                      placeholder="admin@pdn.ac.lk"
                   />
                 </div>
               </div>
 
-              {/* Role Selection */}
               <div>
-                <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                  Administrative Role
-                </label>
+                <label className="block text-sm font-medium text-gray-700">Role</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <UserCheck className="h-5 w-5 text-gray-400" />
                   </div>
                   <select
                       name="role"
-                      id="role"
                       required
                       value={formData.role}
                       onChange={handleInputChange}
-                      className="focus:ring-maroon-500 focus:border-maroon-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 bg-white"
+                      className="focus:ring-[#800000] focus:border-[#800000] block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2.5 bg-white"
                   >
                     <option value="">Select Role</option>
-                    <option value="VICE_CHANCELLOR">Vice Chancellor</option>
-                    <option value="DEAN">Dean</option>
-                    <option value="ASSISTANT_REGISTRAR">Assistant Registrar</option>
-                    <option value="STUDENT_SERVICE">Student Service Division</option>
-                    <option value="PREMISES_OFFICER">Premises Officer</option>
+                    {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* Faculty Selection */}
               {formData.role === 'DEAN' && (
-                  <div className="animate-fade-in-down">
-                    <label htmlFor="faculty" className="block text-sm font-medium text-gray-700">
-                      Faculty
-                    </label>
+                  <div className="animate-fade-in">
+                    <label className="block text-sm font-medium text-gray-700">Faculty</label>
                     <div className="mt-1 relative rounded-md shadow-sm">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <School className="h-5 w-5 text-gray-400" />
                       </div>
                       <select
                           name="faculty"
-                          id="faculty"
                           required
                           value={formData.faculty}
                           onChange={handleInputChange}
-                          className="focus:ring-maroon-500 focus:border-maroon-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 bg-white"
+                          className="focus:ring-[#800000] focus:border-[#800000] block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2.5 bg-white"
                       >
                         <option value="">Select Faculty</option>
-                        <option value="Engineering">Engineering</option>
-                        <option value="Science">Science</option>
-                        <option value="Arts">Arts</option>
-                        <option value="Medicine">Medicine</option>
-                        <option value="Agriculture">Agriculture</option>
-                        <option value="Dental">Dental Sciences</option>
-                        <option value="Management">Management</option>
-                        <option value="Allied Health">Allied Health Sciences</option>
-                        <option value="Veterinary">Veterinary Medicine</option>
+                        {faculties.map(f => <option key={f} value={f}>{f}</option>)}
                       </select>
                     </div>
                   </div>
@@ -170,9 +178,9 @@ const AdminLoginPage: React.FC = () => {
               <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-maroon-800 hover:bg-maroon-900 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-maroon-500 disabled:opacity-50"
+                  className="w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-[#800000] hover:bg-[#600000] transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#800000] disabled:opacity-50"
               >
-                {isSubmitting ? 'Verifying...' : 'Access System'}
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Access System'}
               </button>
             </form>
           </div>
