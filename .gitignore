@@ -1,0 +1,27 @@
+# Environment files
+.env
+*.env
+
+# Node.js
+sms-uop/node_modules/
+
+# Java/Maven/Backend
+backend/target/
+
+
+
+# OS / IDE files
+.DS_Store
+.idea/
+
+# Spring Boot / Java sensitive config
+application.yml
+application.properties
+
+# Or whole config folder
+src/main/resources/application.yml
+src/main/resources/application-*.yml
+
+# Docker compose (local only)
+docker-compose.yml
+docker-compose*.yml
