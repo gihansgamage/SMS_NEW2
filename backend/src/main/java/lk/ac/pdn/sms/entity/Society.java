@@ -4,34 +4,28 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
 
 @Entity
-@Table(name = "societies", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"society_name", "year"})
-})
+@Table(name = "societies")
+@IdClass(SocietyId.class) // Uses the composite key
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class Society {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
 
+    @Id
     @Column(name = "society_name", nullable = false)
     private String societyName;
 
-    @Column(nullable = false)
-    private String faculty;
+    @Id
+    @Column(name = "year", nullable = false)
+    private Integer year;
 
     @Column(nullable = false)
-    private Integer year;
+    private String faculty;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -45,6 +39,7 @@ public class Society {
     private String bankAccount;
     private String bankName;
 
+    // Officials
     private String presidentName;
     private String presidentRegNo;
     private String presidentEmail;
@@ -65,10 +60,11 @@ public class Society {
     private String jointSecretaryEmail;
     private String jointSecretaryMobile;
 
-    private String treasurerName;
-    private String treasurerRegNo;
-    private String treasurerEmail;
-    private String treasurerMobile;
+    // Mapping Junior Treasurer to specific columns
+    private String juniorTreasurerName;
+    private String juniorTreasurerRegNo;
+    private String juniorTreasurerEmail;
+    private String juniorTreasurerMobile;
 
     private String editorName;
     private String editorRegNo;
@@ -91,7 +87,7 @@ public class Society {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (this.registeredDate == null) this.registeredDate = LocalDate.now();
-        if (this.year == null) this.year = LocalDate.now().getYear();
+        // Year must be set by service/controller before saving
     }
 
     @PreUpdate
